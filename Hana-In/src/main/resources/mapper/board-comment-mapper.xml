@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.board.model.dao.BoardCommentDAO">
+
+    <!-- BOARD_ID로 해당 게시글 댓글 조회 -->
+    <select id="getCommentByBoardId" parameterType="int" resultType="com.hanain.board.model.dto.BoardCommentDTO">
+        SELECT BOARD_COMMENT_ID AS boardCommentId, MEMBER_ID AS memberId, BOARD_ID AS boardId, PARENT, INDENT, CONTENT, REG_DATE AS regDate
+        FROM BOARD_COMMENTS
+        WHERE BOARD_ID = #{boardId}
+        START WITH INDENT = 1
+        CONNECT BY PRIOR BOARD_COMMENT_ID = PARENT
+    </select>
+
+    <!-- 새 댓글 작성 -->
+    <insert id="insertComment" parameterType="com.hanain.board.model.dto.BoardCommentDTO">
+        INSERT INTO BOARD_COMMENTS (BOARD_COMMENT_ID, MEMBER_ID, BOARD_ID, PARENT, INDENT, CONTENT, REG_DATE)
+        VALUES (BOARD_COMMENT_SEQ.NEXTVAL, #{memberId}, #{boardId}, 0, 1, #{content}, SYSDATE)
+    </insert>
+
+    <!-- 답글 작성 -->
+    <insert id="insertReply" parameterType="com.hanain.board.model.dto.BoardCommentDTO">
+        INSERT INTO BOARD_COMMENTS (BOARD_COMMENT_ID, MEMBER_ID, BOARD_ID, PARENT, INDENT, CONTENT, REG_DATE)
+        VALUES (BOARD_COMMENT_SEQ.NEXTVAL, #{memberId}, #{boardId}, #{parent}, #{indent}, #{content}, SYSDATE)
+    </insert>
+
+</mapper>

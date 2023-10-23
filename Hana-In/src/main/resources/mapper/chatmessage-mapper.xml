@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.chat.model.dao.ChatMessageDAO">
+
+    <!-- 채팅방 메세지 조회 -->
+    <select id="findAllMessageByRoomId" parameterType="int" resultType="com.hanain.chat.model.dto.ChatMessageDTO">
+        SELECT ROOM_ID AS roomId, MEMBER_ID AS memberId, CONTENT, REG_DATE AS regDate, UNREAD_COUNT AS unreadCount
+        FROM CHAT_MESSAGE
+        WHERE ROOM_ID = #{roomId}
+        ORDER BY REG_DATE
+    </select>
+
+    <!-- 메세지 저장 -->
+    <insert id="insertMessage" parameterType="com.hanain.chat.model.dto.ChatMessageDTO">
+        INSERT INTO CHAT_MESSAGE (room_id, member_id, content, reg_date, unread_count)
+        VALUES (#{roomId}, #{memberId}, #{content}, SYSDATE, 0)
+    </insert>
+
+    <!-- 주주제안 채팅방 첫 메세지 -->
+    <insert id="insertFirstMessage">
+        INSERT INTO CHAT_MESSAGE (room_id, member_id, content, reg_date, unread_count)
+        VALUES (#{roomId}, #{memberId},'작성하신 주주 제안의 채팅방을 생성하였습니다.' , SYSDATE, 0)
+    </insert>
+
+</mapper>

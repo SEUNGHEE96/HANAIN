@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.proposal.model.dao.ProposalDAO">
+
+    <!-- resultMap for StockDTO -->
+    <resultMap id="stockResult" type="com.hanain.stock.model.dto.StockDTO">
+        <result column="stockIsin" property="isin"/>
+        <result column="stockName" property="stockName"/>
+        <result column="sector" property="sector"/>
+        <result column="refDate" property="refDate"/>
+    </resultMap>
+
+    <!-- resultMap for ProposalDTO -->
+    <resultMap id="proposalResult" type="com.hanain.proposal.model.dto.ProposalDTO">
+        <result column="proposalId" property="proposalId"/>
+        <result column="memberId" property="memberId"/>
+        <result column="isin" property="isin"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="startDate" property="startDate"/>
+        <result column="endDate" property="endDate"/>
+        <result column="regDate" property="regDate"/>
+        <result column="RATE1" property="rate1"/>
+        <result column="RATE2" property="rate2"/>
+        <result column="viewCount" property="viewCount"/>
+        <result column="likeCount" property="likeCount"/>
+        <result column="status" property="status"/>
+        <association property="stockDTO" resultMap="stockResult"/>
+    </resultMap>
+
+    <!-- 주주제안 전체 조회 -->
+    <select id="getPaginatedProposal" parameterType="int" resultMap="proposalResult">
+        SELECT *
+        FROM (
+                 SELECT
+                     p.PROPOSAL_ID AS proposalId,
+                     p.MEMBER_ID AS memberId,
+                     p.isin AS isin,
+                     p.title,
+                     p.content,
+                     p.START_DATE AS startDate,
+                     p.END_DATE AS endDate,
+                     p.REG_DATE AS regDate,
+                     p.RATE1,
+                     p.RATE2,
+                     p.VIEW_COUNT AS viewCount,
+                     p.LIKE_COUNT AS likeCount,
+                     p.STATUS,
+                     s.isin AS stockIsin,
+                     s.stock_name AS stockName,
+                     s.sector AS sector,
+                     s.ref_date AS refDate,
+                     ROW_NUMBER() OVER (ORDER BY p.REG_DATE DESC) AS rownum_
+                 FROM PROPOSALS p
+                          LEFT JOIN STOCKS s ON p.isin = s.isin
+             )
+        WHERE rownum_ BETWEEN (#{page} - 1) * 9 + 1 AND #{page} * 9
+    </select>
+
+    <!-- 주주제안 전체 개수 조회 -->
+    <select id="getTotalCount" resultType="int">
+        SELECT COUNT(*) FROM PROPOSALS
+    </select>
+
+    <!-- 주주제안 id로 조회 -->
+    <select id="getProposalById" parameterType="int" resultType="com.hanain.proposal.model.dto.ProposalDTO">
+        SELECT PROPOSAL_ID AS proposalId, MEMBER_ID AS memberId, isin, title, content, START_DATE AS startDate, END_DATE AS endDate, RATE1, RATE2, VIEW_COUNT AS viewCount, LIKE_COUNT AS likeCount, STATUS FROM PROPOSALS WHERE PROPOSAL_ID = #{proposalId}
+    </select>
+
+    <!-- 새 주주제안 작성 -->
+    <insert id="insertProposal" parameterType="com.hanain.proposal.model.dto.ProposalDTO" useGeneratedKeys="true" keyProperty="proposalId" keyColumn="PROPOSAL_ID">
+        INSERT INTO PROPOSALS (
+            PROPOSAL_ID,
+            MEMBER_ID,
+            ISIN,
+            TITLE,
+            CONTENT,
+            START_DATE,
+            END_DATE,
+            REG_DATE,
+            RATE1,
+            RATE2,
+            VIEW_COUNT,
+            LIKE_COUNT,
+            STATUS
+        )
+        VALUES (
+           PROPOSAL_SEQ.NEXTVAL,
+           #{memberId},
+           #{isin},
+           #{title},
+           #{content},
+           TO_DATE(#{startDate}, 'yyyy-mm-dd'),
+           TO_DATE(#{endDate}, 'yyyy-mm-dd'),
+           SYSDATE,
+           0,
+           0,
+           0,
+           0,
+           0
+       )
+    </insert>
+
+    <!-- 주주 제안에 참여 -->
+<!--    <update id="insertProposalParticipation" parameterType="com.hanain.proposal.model.dto.UnionDTO">-->
+<!--        <![CDATA[-->
+<!--        MERGE INTO PROPOSALS p-->
+<!--        USING (-->
+<!--            WITH TotalTrades AS (-->
+<!--                SELECT-->
+<!--                    ISIN,-->
+<!--                    SUM(CASE WHEN TYPE = '매수' THEN QUANTITY ELSE 0 END) AS TOTAL_BUY,-->
+<!--                    SUM(CASE WHEN TYPE = '매도' THEN QUANTITY ELSE 0 END) AS TOTAL_SELL,-->
+<!--                    SUM(CASE WHEN TYPE = '매수' AND TRADE_DATE <= ADD_MONTHS(SYSDATE, -6) THEN QUANTITY ELSE 0 END) AS HOLD_6_MONTHS_BUY-->
+<!--                FROM TRADES-->
+<!--                WHERE ACCOUNT_ID IN (SELECT ACCOUNT_ID FROM ACCOUNTS WHERE MEMBER_ID = #{memberId})-->
+<!--                GROUP BY ISIN-->
+<!--            )-->
+<!--            SELECT-->
+<!--                s.ISIN,-->
+<!--                ROUND(((t.TOTAL_BUY - t.TOTAL_SELL) / (s.ISSUED_SHARES* 0.03)) * 100, 2) AS TOTAL_HOLD_PERCENT,-->
+<!--                ROUND(((CASE WHEN (t.HOLD_6_MONTHS_BUY - t.TOTAL_SELL) < 0 THEN 0 ELSE (t.HOLD_6_MONTHS_BUY - t.TOTAL_SELL) END) / (s.ISSUED_SHARES * 0.03)) * 100, 2) AS HOLD_6_MONTHS_PERCENT-->
+<!--            FROM STOCKS s-->
+<!--            JOIN TotalTrades t ON s.ISIN = t.ISIN-->
+<!--        ) r-->
+<!--        ON (p.ISIN = r.ISIN AND p.PROPOSAL_ID = #{proposalId})-->
+<!--        WHEN MATCHED THEN-->
+<!--            UPDATE SET-->
+<!--                p.RATE1 = p.RATE1 + r.TOTAL_HOLD_PERCENT,-->
+<!--                p.RATE2 = p.RATE2 + r.HOLD_6_MONTHS_PERCENT-->
+<!--        ]]>-->
+<!--    </update>-->
+    <update id="insertProposalParticipation" parameterType="com.hanain.proposal.model.dto.UnionDTO">
+    <![CDATA[
+        UPDATE PROPOSALS p
+        SET
+            p.RATE1 = p.RATE1 + (
+                SELECT
+                    ROUND(((t.TOTAL_BUY - t.TOTAL_SELL) / (s.ISSUED_SHARES* 0.03)) * 100, 2)
+                FROM STOCKS s
+                         JOIN (
+                    SELECT
+                        ISIN,
+                        SUM(CASE WHEN TYPE = '매수' THEN QUANTITY ELSE 0 END) AS TOTAL_BUY,
+                        SUM(CASE WHEN TYPE = '매도' THEN QUANTITY ELSE 0 END) AS TOTAL_SELL
+                    FROM TRADES
+                    WHERE ACCOUNT_ID IN (SELECT ACCOUNT_ID FROM ACCOUNTS WHERE MEMBER_ID = #{memberId})
+                    GROUP BY ISIN
+                ) t ON s.ISIN = t.ISIN
+                WHERE p.ISIN = s.ISIN
+            ),
+            p.RATE2 = p.RATE2 + (
+                SELECT
+                    ROUND(((CASE WHEN (t.HOLD_6_MONTHS_BUY - t.TOTAL_SELL) < 0 THEN 0 ELSE (t.HOLD_6_MONTHS_BUY - t.TOTAL_SELL) END) / (s.ISSUED_SHARES * 0.03)) * 100, 2)
+                FROM STOCKS s
+                         JOIN (
+                    SELECT
+                        ISIN,
+                        SUM(CASE WHEN TYPE = '매수' AND TRADE_DATE <= ADD_MONTHS(SYSDATE, -6) THEN QUANTITY ELSE 0 END) AS HOLD_6_MONTHS_BUY,
+                        SUM(CASE WHEN TYPE = '매도' THEN QUANTITY ELSE 0 END) AS TOTAL_SELL
+                    FROM TRADES
+                    WHERE ACCOUNT_ID IN (SELECT ACCOUNT_ID FROM ACCOUNTS WHERE MEMBER_ID = #{memberId})
+                    GROUP BY ISIN
+                ) t ON s.ISIN = t.ISIN
+                WHERE p.ISIN = s.ISIN
+            )
+        WHERE p.PROPOSAL_ID  = #{proposalId}
+        ]]>
+    </update>
+
+    <!-- 주주 제안 철회 -->
+<!--    <update id="leaveProposalParticipation" parameterType="com.hanain.proposal.model.dto.UnionDTO">-->
+<!--        <![CDATA[-->
+<!--        MERGE INTO PROPOSALS p-->
+<!--            USING (-->
+<!--                WITH TotalTrades AS (-->
+<!--                    SELECT-->
+<!--                        ISIN,-->
+<!--                        SUM(CASE WHEN TYPE = '매수' THEN QUANTITY ELSE 0 END) AS TOTAL_BUY,-->
+<!--                        SUM(CASE WHEN TYPE = '매도' THEN QUANTITY ELSE 0 END) AS TOTAL_SELL,-->
+<!--                        SUM(CASE WHEN TYPE = '매수' AND TRADE_DATE <= ADD_MONTHS(SYSDATE, -6) THEN QUANTITY ELSE 0 END) AS HOLD_6_MONTHS_BUY-->
+<!--                    FROM TRADES-->
+<!--                    WHERE ACCOUNT_ID IN (SELECT ACCOUNT_ID FROM ACCOUNTS WHERE MEMBER_ID = #{memberId})-->
+<!--                    GROUP BY ISIN-->
+<!--                )-->
+<!--                SELECT-->
+<!--                    s.ISIN,-->
+<!--                    ROUND(((t.TOTAL_BUY - t.TOTAL_SELL) / (s.ISSUED_SHARES* 0.03)) * 100, 2) AS TOTAL_HOLD_PERCENT,-->
+<!--                    ROUND(((CASE WHEN (t.HOLD_6_MONTHS_BUY - t.TOTAL_SELL) < 0 THEN 0 ELSE (t.HOLD_6_MONTHS_BUY - t.TOTAL_SELL) END) / (s.ISSUED_SHARES * 0.03)) * 100, 2) AS HOLD_6_MONTHS_PERCENT-->
+<!--                FROM STOCKS s-->
+<!--                         JOIN TotalTrades t ON s.ISIN = t.ISIN-->
+<!--            ) r-->
+<!--            ON (p.ISIN = r.ISIN AND p.PROPOSAL_ID = #{proposalId})-->
+<!--            WHEN MATCHED THEN-->
+<!--                UPDATE SET-->
+<!--                    p.RATE1 = p.RATE1 - r.TOTAL_HOLD_PERCENT,-->
+<!--                    p.RATE2 = p.RATE2 - r.HOLD_6_MONTHS_PERCENT-->
+<!--        ]]>-->
+<!--    </update>-->
+    <update id="leaveProposalParticipation" parameterType="com.hanain.proposal.model.dto.UnionDTO">
+    <![CDATA[
+        UPDATE PROPOSALS p
+        SET
+            p.RATE1 = p.RATE1 - (
+                SELECT
+                    ROUND(((t.TOTAL_BUY - t.TOTAL_SELL) / (s.ISSUED_SHARES* 0.03)) * 100, 2)
+                FROM STOCKS s
+                         JOIN (
+                    SELECT
+                        ISIN,
+                        SUM(CASE WHEN TYPE = '매수' THEN QUANTITY ELSE 0 END) AS TOTAL_BUY,
+                        SUM(CASE WHEN TYPE = '매도' THEN QUANTITY ELSE 0 END) AS TOTAL_SELL
+                    FROM TRADES
+                    WHERE ACCOUNT_ID IN (SELECT ACCOUNT_ID FROM ACCOUNTS WHERE MEMBER_ID = #{memberId})
+                    GROUP BY ISIN
+                ) t ON s.ISIN = t.ISIN
+                WHERE p.ISIN = s.ISIN
+            ),
+            p.RATE2 = p.RATE2 - (
+                SELECT
+                    ROUND(((CASE WHEN (t.HOLD_6_MONTHS_BUY - t.TOTAL_SELL) < 0 THEN 0 ELSE (t.HOLD_6_MONTHS_BUY - t.TOTAL_SELL) END) / (s.ISSUED_SHARES * 0.03)) * 100, 2)
+                FROM STOCKS s
+                         JOIN (
+                    SELECT
+                        ISIN,
+                        SUM(CASE WHEN TYPE = '매수' AND TRADE_DATE <= ADD_MONTHS(SYSDATE, -6) THEN QUANTITY ELSE 0 END) AS HOLD_6_MONTHS_BUY,
+                        SUM(CASE WHEN TYPE = '매도' THEN QUANTITY ELSE 0 END) AS TOTAL_SELL
+                    FROM TRADES
+                    WHERE ACCOUNT_ID IN (SELECT ACCOUNT_ID FROM ACCOUNTS WHERE MEMBER_ID = #{memberId})
+                    GROUP BY ISIN
+                ) t ON s.ISIN = t.ISIN
+                WHERE p.ISIN = s.ISIN
+            )
+        WHERE p.PROPOSAL_ID = #{proposalId}
+        ]]>
+    </update>
+
+    <!-- memberID 기준으로 참여한 주주 제안 조회 : 페이지네이션 전용 -->
+    <select id="getParticipatedProposalByMemberId" resultType="com.hanain.proposal.model.dto.ProposalDTO">
+        SELECT *
+        FROM (SELECT PROPOSAL_ID AS proposalId,
+                     MEMBER_ID AS memberId,
+                     isin,
+                     title,
+                     content,
+                     START_DATE AS startDate,
+                     END_DATE AS endDate,
+                     RATE1,
+                     RATE2,
+                     VIEW_COUNT AS viewCount,
+                     LIKE_COUNT AS likeCount,
+                     STATUS,
+                     ROW_NUMBER() OVER (ORDER BY REG_DATE DESC) AS rownum_
+              FROM PROPOSALS
+              WHERE PROPOSAL_ID IN (SELECT PROPOSAL_ID FROM UNIONS WHERE MEMBER_ID = #{memberId}))
+        WHERE rownum_ BETWEEN (#{page} - 1) * 5 + 1 AND #{page} * 5
+    </select>
+
+    <!-- memberId 기준으로 참여한 주주제안의 갯수 조회 -->
+    <select id="getProposalCountByMemberId" parameterType="String" resultType="int">
+        SELECT COUNT(*) FROM UNIONS WHERE MEMBER_ID = #{memberId}
+    </select>
+
+    <!-- memberID 기준으로 참여한 주주 제안 조회 : 전체 조회 -->
+    <select id="getParticipatedProposalByMemberId2" parameterType="String" resultType="com.hanain.proposal.model.dto.ProposalDTO">
+        SELECT PROPOSAL_ID AS proposalId,
+                 MEMBER_ID AS memberId,
+                 isin,
+                 title,
+                 content,
+                 START_DATE AS startDate,
+                 END_DATE AS endDate,
+                 RATE1,
+                 RATE2,
+                 VIEW_COUNT AS viewCount,
+                 LIKE_COUNT AS likeCount,
+                 STATUS
+          FROM PROPOSALS
+          WHERE PROPOSAL_ID IN (SELECT PROPOSAL_ID FROM UNIONS WHERE MEMBER_ID = #{memberId})
+    </select>
+
+</mapper>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.member.model.dao.MemberDAO">
+
+    <!-- 회원 전체 조회 -->
+    <select id="getAllMember" resultType="com.hanain.member.model.dto.MemberDTO">
+        SELECT MEMBER_ID AS memberId, ID, NAME, PASSWORD, PHONE, EMAIL, ADDRESS, STATUS, CI FROM MEMBERS
+    </select>
+
+    <!-- 로그인 -->
+    <select id="login" parameterType="com.hanain.member.model.dto.LoginDTO" resultType="com.hanain.member.model.dto.MemberDTO">
+        SELECT MEMBER_ID AS memberId, ID, NAME, PASSWORD, PHONE, EMAIL, ADDRESS, STATUS, IDENTIFICATION, CI FROM MEMBERS WHERE MEMBER_ID = #{memberId } AND PASSWORD = #{password }
+    </select>
+
+    <!-- 연락처로 status 업데이트 : sms 본인인증-->
+    <update id="updateStatus" parameterType="String">
+        UPDATE MEMBERS SET STATUS = 1 WHERE PHONE = #{phone }
+    </update>
+
+    <!-- CI 값 업데이트 -->
+    <update id="updateCIByMemberId">
+        UPDATE MEMBERS SET CI = #{ci} WHERE MEMBER_ID = #{memberId}
+    </update>
+
+</mapper>

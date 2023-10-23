@@ -1,0 +1,34 @@
+.order {
+    display: flex;
+    justify-content: space-between;
+    height: 380px;
+}
+
+.order-book {
+    width: 100%;
+}
+
+.order-form {
+    width: 100%;
+}
+
+.order-form input {
+    width: 80%; /* 원하는 크기에 맞게 조절 */
+    box-sizing: border-box; /* padding과 border가 전체 너비에 포함되도록 설정 */
+}
+
+#myChart {
+    width: 100%;
+    height: 400px;
+}
+
+#volumeChart {
+    width: 100%;
+    height: 200px;
+}
+
+.trades {
+    width: 100%;
+    height: 200px;
+    overflow: auto;
+}

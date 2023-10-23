@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.chat.model.dao.ChatRoomDAO">
+
+    <resultMap id="combinedResultMap" type="com.hanain.chat.model.dto.ChatRoomDTO">
+        <!-- ChatRoomDTO 필드에 매핑 -->
+        <id column="roomId" property="roomId" />
+        <result column="title" property="title" />
+        <result column="type" property="type" />
+        <!-- ChatMessageDTO의 필드를 association 태그를 사용하여 ChatRoomDTO 내에 포함 -->
+        <association property="lastMessage" javaType="com.hanain.chat.model.dto.ChatMessageDTO">
+            <id column="memberId" property="memberId" />
+            <result column="content" property="content" />
+            <result column="regDate" property="regDate" />
+            <result column="unreadCount" property="unreadCount" />
+        </association>
+    </resultMap>
+
+    <!-- memberId 기준으로 개인 채팅방 읽어오기 -->
+    <select id="findPrivateChatRoomByMemberId" parameterType="String" resultMap="combinedResultMap">
+        <![CDATA[
+        WITH RankedMessages AS (
+            SELECT ROOM_ID,
+                   MEMBER_ID,
+                   CONTENT,
+                   REG_DATE,
+                   UNREAD_COUNT,
+                   ROW_NUMBER() OVER (PARTITION BY ROOM_ID ORDER BY REG_DATE DESC) AS rn
+            FROM CHAT_MESSAGE
+        )
+        SELECT r.ROOM_ID AS roomId, r.TITLE, r.TYPE,
+               CASE WHEN r.TYPE = 0 THEN
+                        (SELECT DISTINCT MEMBER_ID
+                         FROM CHAT_PARTICIPANT
+                         WHERE ROOM_ID = r.ROOM_ID AND MEMBER_ID <> #{memberId})
+                    ELSE m.MEMBER_ID END AS memberId,
+               m.CONTENT, m.REG_DATE AS regDate, m.UNREAD_COUNT AS unreadCount
+        FROM CHAT_ROOM r
+                 LEFT JOIN RankedMessages m ON r.ROOM_ID = m.ROOM_ID
+                 INNER JOIN (SELECT DISTINCT ROOM_ID
+                             FROM CHAT_PARTICIPANT
+                             WHERE MEMBER_ID = #{memberId}) p
+                            ON r.ROOM_ID = p.ROOM_ID
+        WHERE (m.rn = 1 OR m.rn IS NULL)
+        AND r.TYPE = 0
+        ORDER BY REGDATE DESC
+        ]]>
+    </select>
+
+    <!-- memberId 기준으로 그룹 채팅방 읽어오기 -->
+    <select id="findGroupChatRoomByMemberId" parameterType="String" resultMap="combinedResultMap">
+        <![CDATA[
+        WITH RankedMessages AS (
+            SELECT ROOM_ID,
+                   MEMBER_ID,
+                   CONTENT,
+                   REG_DATE,
+                   UNREAD_COUNT,
+                   ROW_NUMBER() OVER (PARTITION BY ROOM_ID ORDER BY REG_DATE DESC) AS rn
+            FROM CHAT_MESSAGE
+        )
+        SELECT r.ROOM_ID AS roomId, r.TITLE, r.TYPE,
+               CASE WHEN r.TYPE = 0 THEN
+                        (SELECT DISTINCT MEMBER_ID
+                         FROM CHAT_PARTICIPANT
+                         WHERE ROOM_ID = r.ROOM_ID AND MEMBER_ID <> #{memberId})
+                    ELSE m.MEMBER_ID END AS memberId,
+               m.CONTENT, m.REG_DATE AS regDate, m.UNREAD_COUNT AS unreadCount
+        FROM CHAT_ROOM r
+                 LEFT JOIN RankedMessages m ON r.ROOM_ID = m.ROOM_ID
+                 INNER JOIN (SELECT DISTINCT ROOM_ID
+                             FROM CHAT_PARTICIPANT
+                             WHERE MEMBER_ID = #{memberId}) p
+                            ON r.ROOM_ID = p.ROOM_ID
+        WHERE (m.rn = 1 OR m.rn IS NULL)
+          AND r.TYPE = 1
+        ORDER BY REGDATE DESC
+        ]]>
+    </select>
+
+    <!-- 채팅방 생성 -->
+    <insert id="createChatRoom" parameterType="com.hanain.chat.model.dto.ChatRoomDTO"  useGeneratedKeys="true" keyProperty="roomId" keyColumn="ROOM_ID">
+        INSERT INTO CHAT_ROOM (ROOM_ID, TITLE, TYPE)
+        VALUES (CHAT_ROOM_SEQ.NEXTVAL, #{title}, #{type})
+    </insert>
+
+    <!-- 채팅방 참여자 추가 -->
+    <insert id="addParticipant">
+        INSERT INTO CHAT_PARTICIPANT (ROOM_ID, MEMBER_ID)
+        VALUES (#{roomId}, #{memberId})
+    </insert>
+
+    <!-- ProposalId 기준으로 채팅방 조회 -> 주주제안 동참 시 들어갈 채팅방 조회 -->
+    <select id="findChatRoomById" parameterType="int" resultType="int">
+        SELECT ROOM_ID
+        FROM CHAT_ROOM C
+                 INNER JOIN PROPOSALS P
+                            ON C.TITLE = P.TITLE
+        WHERE P.TITLE = (SELECT TITLE FROM PROPOSALS WHERE PROPOSAL_ID = #{proposalId})
+    </select>
+
+    <!-- 채팅방 참여자 삭제 -->
+    <delete id="deleteParticipant">
+        DELETE FROM CHAT_PARTICIPANT
+        WHERE ROOM_ID = #{roomId} AND MEMBER_ID = #{memberId}
+    </delete>
+
+    <!-- 채팅방 id로 참여자들 조회 -->
+    <select id="findParticipantsByRoomId" parameterType="int" resultType="String">
+        SELECT MEMBER_ID
+        FROM CHAT_PARTICIPANT
+        WHERE ROOM_ID = #{roomId}
+    </select>
+
+</mapper>

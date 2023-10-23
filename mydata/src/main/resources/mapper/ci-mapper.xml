@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kopo.mydata.model.dao.CIDAO">
+
+    <!-- 주민번호로 CI 조회 -->
+    <select id="getCI" parameterType="String" resultType="com.kopo.mydata.model.dto.CIDTO">
+        SELECT CI, IDENTIFICATION FROM MYDATA_CI WHERE IDENTIFICATION = #{identification}
+    </select>
+
+</mapper>

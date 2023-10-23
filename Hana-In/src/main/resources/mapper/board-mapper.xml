@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.board.model.dao.BoardDAO">
+
+    <!-- resultMap for StockDTO -->
+    <resultMap id="stockResult" type="com.hanain.stock.model.dto.StockDTO">
+        <result column="stock_isin" property="isin"/>
+        <result column="stockName" property="stockName"/>
+        <result column="sector" property="sector"/>
+        <result column="refDate" property="refDate"/>
+    </resultMap>
+
+    <!-- resultMap for ProposalDTO -->
+    <resultMap id="boardResult" type="com.hanain.board.model.dto.BoardDTO">
+        <result column="boardId" property="boardId"/>
+        <result column="memberId" property="memberId"/>
+        <result column="isin" property="isin"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="regDate" property="regDate"/>
+        <result column="viewCount" property="viewCount"/>
+        <result column="likeCount" property="likeCount"/>
+        <result column="status" property="status"/>
+        <association property="stockDTO" resultMap="stockResult"/>
+    </resultMap>
+
+    <!-- 게시글 전체 조회 -->
+    <select id="getAllBoard" resultMap="boardResult">
+        SELECT
+            b.BOARD_ID AS boardId,
+            b.MEMBER_ID AS memberId,
+            b.ISIN AS isin,
+            b.TITLE AS title,
+            b.CONTENT AS content,
+            b.REG_DATE AS regDate,
+            b.VIEW_COUNT AS viewCount,
+            b.LIKE_COUNT AS likeCount,
+            b.STATUS AS status,
+            s.ISIN AS stock_isin,
+            s.STOCK_NAME AS stockName,
+            s.SECTOR AS sector,
+            s.REF_DATE AS refDate
+        FROM
+            BOARDS b
+                LEFT JOIN
+            STOCKS s ON b.ISIN = s.ISIN
+        ORDER BY
+            b.REG_DATE DESC
+    </select>
+
+    <!-- 해당 게시물의 MEMEBER_ID와 ISIN으로 BALANCES 조회 -->
+    <select id="getBalanceByBoardId" parameterType="int" resultType="com.hanain.account.model.dto.BalanceDTO">
+        SELECT ACCOUNT_ID AS accountId, ISIN, GRADE_ID AS gradeId, QUANTITY, AVERAGE_PRICE AS averagePrice
+        FROM BALANCES
+        WHERE ACCOUNT_ID IN (SELECT ACCOUNT_ID FROM ACCOUNTS WHERE MEMBER_ID = (SELECT MEMBER_ID FROM BOARDS WHERE BOARD_ID = #{boardId}))
+        AND ISIN = (SELECT ISIN FROM BOARDS WHERE BOARD_ID = #{boardId})
+    </select>
+
+    <!-- boardID로 해당 게시글 상세 정보 조회 -->
+    <select id="getBoardByBoardId" parameterType="int" resultMap="boardResult">
+        SELECT
+            b.BOARD_ID AS boardId,
+            b.MEMBER_ID AS memberId,
+            b.ISIN AS isin,
+            b.TITLE AS title,
+            b.CONTENT AS content,
+            b.REG_DATE AS regDate,
+            b.VIEW_COUNT AS viewCount,
+            b.LIKE_COUNT AS likeCount,
+            b.STATUS AS status,
+            s.ISIN AS stock_isin,
+            s.STOCK_NAME AS stockName,
+            s.SECTOR AS sector,
+            s.REF_DATE AS refDate
+        FROM
+            BOARDS b
+                LEFT JOIN
+            STOCKS s ON b.ISIN = s.ISIN
+        WHERE
+            b.BOARD_ID = #{boardId}
+    </select>
+
+</mapper>

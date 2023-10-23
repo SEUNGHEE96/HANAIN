@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.proposal.model.dao.ProposalCommentDAO">
+
+    <!-- proposalId로 댓글 상세 조회 -->
+    <select id="getCommentsByProposalId" parameterType="int" resultType="com.hanain.proposal.model.dto.ProposalCommentDTO">
+        SELECT PROPOSAL_COMMENT_ID AS proposalCommentId, MEMBER_ID AS memberId, PROPOSAL_ID AS proposalId, PARENT, INDENT, CONTENT, REG_DATE AS regDate
+        FROM PROPOSAL_COMMENTS
+        WHERE PROPOSAL_ID = #{proposalId}
+        START WITH INDENT = 1
+        CONNECT BY PRIOR PROPOSAL_COMMENT_ID = PARENT
+        ORDER SIBLINGS BY REG_DATE DESC
+    </select>
+
+    <!-- PROPOSALID로 댓글 개수 조회 -->
+    <select id="getCommentCountByProposalId" parameterType="int" resultType="int">
+        SELECT COUNT(*) AS commentCount
+        FROM PROPOSAL_COMMENTS
+        WHERE PROPOSAL_ID = #{proposalId}
+    </select>
+
+    <!-- 댓글 작성 -->
+    <insert id="insertComment" parameterType="com.hanain.proposal.model.dto.ProposalCommentDTO">
+        INSERT INTO PROPOSAL_COMMENTS (PROPOSAL_COMMENT_ID, MEMBER_ID, PROPOSAL_ID, PARENT, INDENT, CONTENT, REG_DATE)
+        VALUES (PROPOSAL_COMMENT_SEQ.NEXTVAL, #{memberId}, #{proposalId}, 0, 1, #{content}, SYSDATE)
+    </insert>
+
+    <!-- 답글 작성 -->
+    <insert id="insertReply" parameterType="com.hanain.proposal.model.dto.ProposalCommentDTO">
+        INSERT INTO PROPOSAL_COMMENTS (PROPOSAL_COMMENT_ID, MEMBER_ID, PROPOSAL_ID, PARENT, INDENT, CONTENT, REG_DATE)
+        VALUES (PROPOSAL_COMMENT_SEQ.NEXTVAL, #{memberId}, #{proposalId}, #{parent}, #{indent}, #{content}, SYSDATE)
+    </insert>
+
+</mapper>

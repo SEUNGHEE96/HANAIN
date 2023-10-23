@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.account.model.dao.AccountDAO">
+
+    <!-- 계좌 전체 조회 -->
+    <select id="getAllAccount" resultType="com.hanain.account.model.dto.AccountDTO">
+        SELECT ACCOUNT_ID AS accountId, MEMBER_ID AS memberId, COMPANY, ACCOUNT_NUMBER AS accountNumber, CASH FROM ACCOUNTS
+    </select>
+
+    <!-- 하나 증권 계좌 조회 -->
+    <select id="getHanaAccountById" parameterType="String" resultType="com.hanain.account.model.dto.AccountDTO">
+        SELECT ACCOUNT_ID AS accountId, MEMBER_ID AS memberId, COMPANY, ACCOUNT_NUMBER AS accountNumber, CASH
+        FROM ACCOUNTS
+        WHERE MEMBER_ID = #{memberId}
+        AND COMPANY = '하나증권'
+    </select>
+
+    <!-- 계좌 번호로 계좌 정보 조회 : 주식거래창 현금 정보 가져올 때 작성 -->
+    <select id="getAccountByNumber" parameterType="long" resultType="com.hanain.account.model.dto.AccountDTO">
+        SELECT ACCOUNT_ID AS accountId, MEMBER_ID AS memberId, COMPANY, ACCOUNT_NUMBER AS accountNumber, CASH
+        FROM ACCOUNTS
+        WHERE ACCOUNT_NUMBER = #{accountNumber}
+    </select>
+
+    <!-- 계좌 아이디로 계좌 정보 조회 : 주식 매수 후 현금 업데이트 떄 사용 -->
+    <select id="getAccountById" parameterType="int" resultType="com.hanain.account.model.dto.AccountDTO">
+        SELECT ACCOUNT_ID AS accountId, MEMBER_ID AS memberId, COMPANY, ACCOUNT_NUMBER AS accountNumber, CASH
+        FROM ACCOUNTS
+        WHERE ACCOUNT_ID = #{accountId}
+    </select>
+
+    <!-- 입력받은 계좌 정보로 현금 업데이트 -->
+    <update id="updateCash" parameterType="com.hanain.account.model.dto.AccountDTO">
+        UPDATE ACCOUNTS
+        SET CASH = #{cash}
+        WHERE ACCOUNT_ID = #{accountId}
+    </update>
+
+    <!-- 멤버 아이디 입력받아 계좌 정보 조회 : 잔고 페이지 내에서 사용 : 현금이 주식 가격을 반영하여 나옴 -->
+    <select id="getAccountByMemberId" parameterType="String" resultType="com.hanain.account.model.dto.AccountDTO">
+        SELECT a.ACCOUNT_ID AS accountId, a.MEMBER_ID AS memberId, a.COMPANY, a.ACCOUNT_NUMBER AS accountNumber, (a.cash + COALESCE(SUM(b.average_Price * b.quantity), 0)) AS CASH
+        FROM
+            Accounts a
+        LEFT JOIN
+            Balances b ON a.account_Id = b.account_Id
+        WHERE
+            a.member_Id = #{memberId}
+        GROUP BY
+            a.account_Id, a.member_Id, a.company, a.account_Number, a.cash
+    </select>
+
+    <!-- 계좌 추가 : 마이데이터 -->
+    <insert id="insertAccount" parameterType="com.hanain.account.model.dto.AccountDTO" useGeneratedKeys="true" keyProperty="accountId" keyColumn="ACCOUNT_ID">
+        INSERT INTO Accounts (ACCOUNT_ID, MEMBER_ID, COMPANY, ACCOUNT_NUMBER, CASH)
+        VALUES (ACCOUNT_SEQ.NEXTVAL, #{memberId}, #{company}, #{accountNumber}, #{cash})
+    </insert>
+
+</mapper>

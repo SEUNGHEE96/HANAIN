@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.account.model.dao.BalanceDAO">
+
+    <!-- 계좌 전체 조회 -->
+    <select id="getAllBalance" resultType="com.hanain.account.model.dto.BalanceDTO">
+        SELECT ACCOUNT_ID AS accountId, ISIN, GRADE_ID AS gradeId, QUANTITY, AVERAGE_PRICE AS averagePrice FROM BALANCES
+    </select>
+
+    <!-- 계좌 번호 & 주식코드 -> 매도 가능 수량 조회-->
+
+    <select id="getSellableQuantity" parameterType="map" resultType="com.hanain.account.model.dto.BalanceDTO">
+        SELECT ACCOUNT_ID AS accountId, ISIN, GRADE_ID AS gradeId, QUANTITY, AVERAGE_PRICE AS averagePrice
+        FROM BALANCES
+        where account_id = (select account_id from accounts where account_number = #{accountNumber})
+        and isin = #{isin}
+    </select>
+
+    <!-- TradeDTO 정보 -> 새로 산 주식을 잔고에 보유 중인지 확인 -->
+    <select id="findByAccountIdAndIsin" parameterType="map" resultType="com.hanain.account.model.dto.BalanceDTO">
+        SELECT ACCOUNT_ID AS accountId, ISIN, GRADE_ID AS gradeId, QUANTITY, AVERAGE_PRICE AS averagePrice
+        FROM BALANCES
+        where account_id = #{accountId}
+        and isin = #{isin}
+    </select>
+
+    <!-- 입력 받은 BalanceDTO 정보로 Update -->
+    <update id="updateBalance" parameterType="com.hanain.account.model.dto.BalanceDTO">
+        UPDATE BALANCES
+        SET QUANTITY = #{quantity}, AVERAGE_PRICE = #{averagePrice}
+        WHERE ACCOUNT_ID = #{accountId}
+        AND ISIN = #{isin}
+    </update>
+
+    <!-- 새로운 거래내역 추가 -->
+    <insert id="insertBalance" parameterType="com.hanain.account.model.dto.BalanceDTO">
+        INSERT INTO BALANCES(ACCOUNT_ID, ISIN, GRADE_ID, QUANTITY, AVERAGE_PRICE)
+        VALUES(#{accountId}, #{isin}, 1, #{quantity}, #{averagePrice})
+    </insert>
+
+    <!-- MEMBER_ID -> 계좌 정보 조회 : 잔고 페이지의 파이차트 -->
+    <select id="getBalanceByMemberId" parameterType="String" resultType="com.hanain.account.model.dto.BalanceDTO">
+        SELECT BALANCES.ACCOUNT_ID AS accountId, S.STOCK_NAME AS ISIN, BALANCES.GRADE_ID AS gradeId, BALANCES.QUANTITY, BALANCES.AVERAGE_PRICE AS averagePrice
+        FROM BALANCES
+                 INNER JOIN ACCOUNTS
+                            ON BALANCES.ACCOUNT_ID = ACCOUNTS.ACCOUNT_ID
+                 INNER JOIN STOCKS S
+                            ON BALANCES.ISIN = S.ISIN
+        WHERE ACCOUNTS.MEMBER_ID = #{memberId}
+    </select>
+
+    <!-- ACCOUNT_NUMBER -> 내잔고 페이지에서 계좌 상세 페이지 -->
+    <select id="getBalanceByAccountNumber" parameterType="Long" resultType="com.hanain.account.model.dto.BalanceDTO">
+        SELECT ACCOUNT_ID AS accountId, ISIN, GRADE_ID AS gradeId, QUANTITY, AVERAGE_PRICE AS averagePrice
+        FROM BALANCES
+        WHERE ACCOUNT_ID = (SELECT ACCOUNT_ID
+                            FROM ACCOUNTS
+                            WHERE ACCOUNT_NUMBER = #{accountNumber})
+    </select>
+
+</mapper>

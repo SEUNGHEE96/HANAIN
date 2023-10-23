@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kopo.mydata.model.dao.BalanceDAO">
+
+    <!-- 계좌번호로 잔고 조회 -->
+    <select id="getBalances" parameterType="Long" resultType="com.kopo.mydata.model.dto.BalanceDTO">
+        SELECT ISIN, ACCOUNT_NUMBER AS accountNumber, QUANTITY, AVERAGE_PRICE AS averagePrice FROM MYDATA_BALANCES WHERE ACCOUNT_NUMBER = #{accountNumber}
+    </select>
+
+</mapper>

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.account.model.dao.TradeDAO">
+
+    <!-- 게시글 전체 조회 -->
+    <select id="getAllBoard" resultType="com.hanain.account.model.dto.TradeDTO">
+        SELECT TRADE_ID AS tradeId, ACCOUNT_ID AS accountId, ISIN, TYPE, TRADE_DATE AS tradeDate, QUANTITY, PRICE FROM BOARDS
+    </select>
+
+    <!-- 주식 매수 -->
+    <insert id="insertTrade" parameterType="com.hanain.account.model.dto.TradeDTO">
+        INSERT INTO TRADES (trade_id, account_id, isin, type, trade_date, quantity, price)
+        VALUES (TRADE_SEQ.NEXTVAL, #{accountId}, #{isin}, '매수', SYSDATE, #{quantity}, #{price})
+    </insert>
+
+    <!-- Account id로 조회 : 주식 거래창 우측 하단 거래내역 : ISIN이란 이름으로 종목명 반환 -->
+    <select id="getTradeByAccountId" parameterType="int" resultType="com.hanain.account.model.dto.TradeDTO">
+        SELECT TRADE_ID AS tradeId, ACCOUNT_ID AS accountId, S.STOCK_NAME AS ISIN, TYPE, TRADE_DATE AS tradeDate, QUANTITY, PRICE
+        FROM TRADES T
+                 INNER JOIN STOCKS S
+                            ON T.ISIN = S.ISIN
+        WHERE ACCOUNT_ID = #{accountId}
+    </select>
+
+    <!-- memberId로 전체 거래내역 조회 : isin이란 이름으로 stock_name 가져옴 : mybalance에서 보여주는 용-->
+    <select id="getTradeByMemberId" resultType="com.hanain.account.model.dto.TradeDTO">
+        SELECT *
+        FROM (SELECT
+                  t.TRADE_ID AS tradeId,
+                  t.ACCOUNT_ID AS accountId,
+                  s.STOCK_NAME AS ISIN,
+                  t.TYPE,
+                  t.TRADE_DATE AS tradeDate,
+                  t.QUANTITY,
+                  t.PRICE,
+                  ROW_NUMBER() OVER (ORDER BY TRADE_DATE DESC) AS rownum_
+              FROM
+                  accounts a
+                      JOIN
+                  trades t ON a.ACCOUNT_ID = t.ACCOUNT_ID
+                      JOIN
+                  stocks s ON t.ISIN = s.ISIN
+              WHERE
+                  a.MEMBER_ID = #{memberId})
+        WHERE rownum_ BETWEEN (#{page} - 1) * 7 + 1 AND #{page} * 7
+    </select>
+
+    <!-- 당월 거래한 거래 내역 갯수 조회 -->
+    <select id="getTradeCountThisMonthByMemberId" parameterType="String" resultType="int">
+        SELECT COUNT(*)
+        FROM TRADES
+        WHERE ACCOUNT_ID IN (
+            SELECT ACCOUNT_ID
+            FROM ACCOUNTS
+            WHERE MEMBER_ID = #{memberId}
+        )
+          AND TRADE_DATE BETWEEN
+            TRUNC(SYSDATE, 'MM') -- 이번 달의 첫날
+            AND SYSDATE
+    </select>
+
+    <!-- *전체* 거래한 거래 내역 갯수 조회 -->
+    <select id="getTradeCountByMemberId" parameterType="String" resultType="int">
+        SELECT COUNT(*)
+        FROM TRADES
+        WHERE ACCOUNT_ID IN (
+            SELECT ACCOUNT_ID
+            FROM ACCOUNTS
+            WHERE MEMBER_ID = #{memberId}
+        )
+    </select>
+
+</mapper>

@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hanain.stock.model.dao.StockDAO">
+
+    <!-- Stock 테이블 -->
+
+    <!-- 주식 전체 조회 -->
+    <select id="getAllStock" resultType="com.hanain.stock.model.dto.StockDTO">
+        SELECT ISIN, STOCK_NAME AS stockName, SECTOR, REF_DATE AS refDate, ISSUED_SHARES AS issuedShares
+        FROM STOCKS
+    </select>
+
+    <!-- 회원이 보유한 주식 조회 (사이드바용) -->
+    <select id="getStockByMemberId" parameterType="String" resultType="com.hanain.stock.model.dto.StockDTO">
+        select s.isin, s.STOCK_NAME AS stockName, s.sector, s.REF_DATE AS refDate, s.ISSUED_SHARES AS issuedShares
+        from balances b
+        inner join stocks s
+        on b.isin = s.isin where account_id in (
+        select account_id from accounts where member_id = #{memberId})
+    </select>
+
+    <!-- 회원의 관심 종목 (사이드바용) -->
+    <select id="getLikedStockByMemberId" parameterType="String" resultType="com.hanain.stock.model.dto.StockDTO">
+        select s.isin, s.STOCK_NAME AS stockName, s.sector, s.REF_DATE AS refDate, s.ISSUED_SHARES AS issuedShares
+        from LIKED_STOCKS  b
+        inner join stocks s
+        on b.isin = s.isin where member_id = #{memberId}
+    </select>
+
+    <!-- 차트 그릴 때 사용 : 이름으로 검색 -->
+    <select id="findByName" parameterType="String" resultType="com.hanain.stock.model.dto.StockDTO">
+        select ISIN, STOCK_NAME AS stockName, SECTOR, REF_DATE AS refDate, ISSUED_SHARES AS issuedShares
+        from stocks
+        where STOCK_NAME = #{stockName}
+    </select>
+
+    <!-- 차트 그릴 때 사용 : 종목코드로 검색 -->
+    <select id="findByIsin" parameterType="String" resultType="com.hanain.stock.model.dto.StockDTO">
+        select ISIN, STOCK_NAME AS stockName, SECTOR, REF_DATE AS refDate, ISSUED_SHARES AS issuedShares
+        from stocks
+        where isin = #{isin}
+    </select>
+
+    <!-- 검색 중 - 이름으로 검색 -->
+    <select id="stockListFindByName" parameterType="String" resultType="com.hanain.stock.model.dto.StockDTO">
+    <![CDATA[
+        select ISIN, STOCK_NAME AS stockName, SECTOR, REF_DATE AS refDate, ISSUED_SHARES AS issuedShares
+        from (select * from stocks where stock_name like CONCAT(#{stockName}, '%') ORDER BY stock_name ASC)
+        where ROWNUM <= 5
+        ]]>
+    </select>
+
+    <!-- 검색 중 - 종목코드로 검색 -->
+    <select id="stockListFindByIsin" parameterType="String" resultType="com.hanain.stock.model.dto.StockDTO">
+    <![CDATA[
+        select ISIN, STOCK_NAME AS stockName, SECTOR, REF_DATE AS refDate, ISSUED_SHARES AS issuedShares
+        from (select * from stocks where isin like CONCAT(#{isin}, '%') order by isin asc)
+        where ROWNUM <= 5
+        ]]>
+    </select>
+
+    <!-- 기업정보 페이지 -->
+
+    <!-- 시장 정보 탭 -->
+    <!-- isin으로 검색 (차트 그릴 때 사용) -->
+    <select id="getOHLCVByIsin" parameterType="String" resultType="com.hanain.stock.model.dto.OhlcvDTO">
+        SELECT ISIN, REG_DATE AS regDate, OPEN, HIGH, LOW, CLOSE, VOLUME, AMOUNT, UPDOWN
+        FROM ohlcvs
+        WHERE ISIN = #{isin}
+        AND OPEN != 0
+        AND HIGH != 0
+        AND LOW != 0
+        AND CLOSE != 0
+        AND VOLUME != 0
+        AND AMOUNT != 0
+        AND REG_DATE >= ADD_MONTHS(SYSDATE, -60) <!-- 3년치만 -->
+        ORDER BY REG_DATE ASC
+    </select>
+
+    <!-- isin으로 valuation 검색 -->
+    <select id="getValuationByIsin" parameterType="String" resultType="com.hanain.stock.model.dto.ValuationDTO">
+        SELECT ISIN, REG_DATE AS regDate, BPS, PER, PBR, EPS, DIV, DPS
+        FROM VALUATIONS
+        WHERE ISIN = #{isin}
+        ORDER BY REG_DATE DESC
+        FETCH FIRST 1 ROWS ONLY
+    </select>
+
+    <!-- isin으로 fundamental 검색 -->
+    <select id="getFundamentalByIsin" parameterType="String" resultType="com.hanain.stock.model.dto.FundamentalDTO">
+        <![CDATA[
+        SELECT ISIN, ITEM, REG_DATE AS regDate, VALUE, STATUS FROM (
+            SELECT
+                ISIN,
+                ITEM,
+                TO_DATE(TO_CHAR(SYSDATE, 'YYYY') || '1231', 'YYYYMMDD') AS REG_DATE,
+                SUM(VALUE) * 2 AS VALUE,
+                'y' AS STATUS
+            FROM fundamentals
+            WHERE ISIN = #{isin}
+            AND STATUS = 'q'
+            AND EXTRACT(YEAR FROM REG_DATE) = EXTRACT(YEAR FROM SYSDATE)
+            GROUP BY ISIN, ITEM
+            UNION ALL
+            SELECT ISIN, ITEM, REG_DATE, VALUE, STATUS
+            FROM fundamentals
+            WHERE ISIN = #{isin}
+            AND STATUS = 'y'
+            AND EXTRACT(YEAR FROM REG_DATE) < EXTRACT(YEAR FROM SYSDATE)
+            )
+        WHERE ITEM IN ('매출액', '영업이익', '당기순이익', '자산', '부채', '자본', '이익잉여금(결손금)', '배당금지급(-)')
+        ORDER BY REG_DATE ASC
+        ]]>
+    </select>
+
+    <!-- 경쟁사 탭 -->
+    <!-- 같은 산업군 조회 -->
+    <select id="getStocksBySector" parameterType="String" resultType="com.hanain.stock.model.dto.StockChartDTO">
+        <![CDATA[
+        SELECT *  FROM(
+            SELECT
+                F.ISIN,
+                S.STOCK_NAME AS stockName,
+                F.REG_DATE AS regDate,
+                MAX(CASE WHEN F.ITEM = '매출액' THEN F.VALUE END) AS sales,
+                MAX(CASE WHEN F.ITEM = '영업이익' THEN F.VALUE END) AS operatingProfit,
+                MAX(CASE WHEN F.ITEM = '당기순이익' THEN F.VALUE END) AS netIncome,
+                MAX(CASE WHEN F.ITEM = '자산' THEN F.VALUE END) AS assets,
+                MAX(CASE WHEN F.ITEM = '부채' THEN F.VALUE END) AS liabilities,
+                MAX(CASE WHEN F.ITEM = '자본' THEN F.VALUE END) AS equity,
+                MAX(CASE WHEN F.ITEM = '이익잉여금(결손금)' THEN F.VALUE END) AS retainedEarnings,
+                MAX(CASE WHEN F.ITEM = '배당금지급(-)' THEN F.VALUE END) AS dividendPayment
+            FROM FUNDAMENTALS F
+            INNER JOIN STOCKS S
+            ON F.ISIN = S.ISIN
+            WHERE
+                F.ISIN IN (SELECT *
+            FROM(
+                select ISIN
+                from stocks
+                where sector = (select sector from stocks where isin = #{isin})
+                and isin != #{isin}
+                order by issued_shares desc)
+            WHERE ROWNUM < 20)
+                AND EXTRACT(YEAR FROM REG_DATE) = EXTRACT(YEAR FROM SYSDATE) -1
+                AND F.ITEM IN ('매출액', '영업이익', '당기순이익', '자산', '부채', '자본', '이익잉여금(결손금)', '배당금지급(-)')
+                AND F.STATUS = 'y'
+            GROUP BY F.ISIN, S.STOCK_NAME, F.REG_DATE
+            ORDER BY ISIN)
+        WHERE ROWNUM < 19
+        ]]>
+    </select>
+
+    <resultMap id="tagResultMap" type="hashmap">
+        <result property="tagId" column="tag_id" />
+        <result property="tagName" column="tag_name" />
+    </resultMap>
+
+    <!-- 태그 조회 -->
+    <select id="selectTags" resultMap="tagResultMap">
+        SELECT tag_id, tag_name
+        FROM TAGS
+        WHERE TAG_ID IN (
+            SELECT TAG_ID
+            FROM STOCK_TAGS
+            WHERE ISIN = #{isin}
+        )
+    </select>
+
+    <!-- 같은 태그를 가진 회사들 조회 -->
+    <select id="selectStocksByTag" parameterType="String" resultType="com.hanain.stock.model.dto.StockChartDTO">
+        <![CDATA[
+        SELECT * FROM (
+            SELECT
+                F.ISIN,
+                S.STOCK_NAME AS stockName,
+                F.REG_DATE AS regDate,
+                MAX(CASE WHEN F.ITEM = '매출액' THEN F.VALUE END) AS sales,
+                MAX(CASE WHEN F.ITEM = '영업이익' THEN F.VALUE END) AS operatingProfit,
+                MAX(CASE WHEN F.ITEM = '당기순이익' THEN F.VALUE END) AS netIncome,
+                MAX(CASE WHEN F.ITEM = '자산' THEN F.VALUE END) AS assets,
+                MAX(CASE WHEN F.ITEM = '부채' THEN F.VALUE END) AS liabilities,
+                MAX(CASE WHEN F.ITEM = '자본' THEN F.VALUE END) AS equity,
+                MAX(CASE WHEN F.ITEM = '이익잉여금(결손금)' THEN F.VALUE END) AS retainedEarnings,
+                MAX(CASE WHEN F.ITEM = '배당금지급(-)' THEN F.VALUE END) AS dividendPayment
+            FROM FUNDAMENTALS F
+            INNER JOIN STOCKS S
+            ON F.ISIN = S.ISIN
+            WHERE
+                F.ISIN IN (SELECT ISIN FROM STOCK_TAGS WHERE TAG_ID = #{tagId})
+                AND EXTRACT(YEAR FROM REG_DATE) = EXTRACT(YEAR FROM SYSDATE) -1
+                AND F.ITEM IN ('매출액', '영업이익', '당기순이익', '자산', '부채', '자본', '이익잉여금(결손금)', '배당금지급(-)')
+                AND F.STATUS = 'y'
+            GROUP BY F.ISIN, S.STOCK_NAME, F.REG_DATE
+            ORDER BY ISIN)
+        WHERE ROWNUM < 19
+        ]]>
+    </select>
+
+    <!-- isin으로 회사 정보 조회 -->
+    <select id="getStockChartByIsin" resultType="com.hanain.stock.model.dto.StockChartDTO">
+        SELECT
+            F.ISIN,
+            S.STOCK_NAME AS stockName,
+            F.REG_DATE AS regDate,
+            MAX(CASE WHEN F.ITEM = '매출액' THEN F.VALUE END) AS sales,
+            MAX(CASE WHEN F.ITEM = '영업이익' THEN F.VALUE END) AS operatingProfit,
+            MAX(CASE WHEN F.ITEM = '당기순이익' THEN F.VALUE END) AS netIncome,
+            MAX(CASE WHEN F.ITEM = '자산' THEN F.VALUE END) AS assets,
+            MAX(CASE WHEN F.ITEM = '부채' THEN F.VALUE END) AS liabilities,
+            MAX(CASE WHEN F.ITEM = '자본' THEN F.VALUE END) AS equity,
+            MAX(CASE WHEN F.ITEM = '이익잉여금(결손금)' THEN F.VALUE END) AS retainedEarnings,
+            MAX(CASE WHEN F.ITEM = '배당금지급(-)' THEN ABS(F.VALUE) END) AS dividendPayment,
+            V.PER,
+            O.CLOSE,
+            S.ISSUED_SHARES AS issuedShares
+        FROM FUNDAMENTALS F
+        INNER JOIN STOCKS S
+        ON F.ISIN = S.ISIN
+        INNER JOIN VALUATIONS V
+        ON F.ISIN = V.ISIN
+        INNER JOIN OHLCVS O
+        ON F.ISIN = O.ISIN
+        WHERE
+            F.ISIN IN
+            <foreach item="isin" collection="isins" open="(" separator="," close=")">
+                #{isin}
+            </foreach>
+            AND F.ITEM IN ('매출액', '영업이익', '당기순이익', '자산', '부채', '자본', '이익잉여금(결손금)', '배당금지급(-)')
+            AND F.STATUS = 'y'
+            AND V.REG_DATE = (SELECT MAX(REG_DATE) FROM VALUATIONS)
+            AND O.REG_DATE = (SELECT MAX(REG_DATE) FROM OHLCVS)
+        GROUP BY F.ISIN, S.STOCK_NAME, F.REG_DATE, V.PER, O.CLOSE, S.ISSUED_SHARES
+        ORDER BY ISIN
+    </select>
+
+    <!-- OCR 결과에서 사용 : 이름으로 검색 -->
+    <select id="findByNameByWildCard" parameterType="String" resultType="com.hanain.stock.model.dto.StockDTO">
+        select ISIN, STOCK_NAME AS stockName, SECTOR, REF_DATE AS refDate, ISSUED_SHARES AS issuedShares
+        from stocks
+        where STOCK_NAME like '%' || #{stockName} || '%'
+    </select>
+
+</mapper>

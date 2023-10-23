@@ -1,0 +1,44 @@
+@charset "UTF-8";
+
+@font-face {
+    font-family: 'Jal_Onuel';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-10-21@1.0/Jal_Onuel.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    margin-bottom: 50px;
+}
+
+body, table, th, td, a, p, div, span, li, button, input, textarea, select, option, h1, h2, h3, h4, h5, h6 {
+    color: #777;
+    font-family: 'Jal_Onuel' !important;
+}
+
+h1 {
+    font-size: 24px;
+    padding-bottom: 5px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #BBB;
+}
+
+h2 {
+    font-size: 20px;
+    padding-bottom: 5px;
+    margin-bottom: 15px;
+    border-bottom: 1px dashed #BBB;
+}
+
+h3 {
+    font-size: 16px;
+}
+
+.container {
+    width: 800px;
+}
